@@ -895,92 +895,119 @@ static void handleWebRoot()
     markUiSessionActive();
 
     String page;
-    page.reserve(4000);
+    page.reserve(5000);
 
-    page += R"HTML(<!doctype html>
+    page += R"UIPART(<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>JJY Scheduler</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f6f9; color: #1f2937; line-height: 1.5; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+    .card { background: #fff; border-radius: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); padding: 24px; margin-bottom: 20px; }
+    header.card { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+    h1 { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+    h2 { margin: 0 0 20px; font-size: 1.125rem; font-weight: 700; }
+    .badge { display: inline-block; padding: 6px 14px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+    .badge.auto { background: #d1fae5; color: #065f46; }
+    .badge.override { background: #fef3c7; color: #92400e; }
+    .alert { padding: 16px 18px; border-radius: 14px; margin-bottom: 20px; font-size: 0.875rem; }
+    .alert.amber { background: #fffbeb; border-left: 5px solid #f59e0b; color: #92400e; }
+    .alert strong { font-weight: 700; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+    @media (min-width: 720px) { .grid { grid-template-columns: 1fr 1fr; } }
+    .btn { display: block; width: 100%; text-align: center; padding: 14px 16px; border-radius: 10px; font-size: 0.95rem; font-weight: 600; text-decoration: none; border: none; cursor: pointer; transition: background 0.15s, transform 0.05s; margin-bottom: 12px; }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: #4f46e5; color: #fff; }
+    .btn-primary:hover { background: #4338ca; }
+    .btn-secondary { background: #eef2ff; color: #4f46e5; }
+    .btn-secondary:hover { background: #e0e7ff; }
+    .btn-success { background: #059669; color: #fff; }
+    .btn-success:hover { background: #047857; }
+    .btn-default { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+    .btn-default:hover { background: #f9fafb; }
+    .btn-ghost { background: transparent; color: #6b7280; }
+    .btn-ghost:hover { color: #111827; }
+    .field { margin-bottom: 18px; }
+    label { display: block; font-size: 0.9rem; font-weight: 500; color: #374151; margin-bottom: 6px; }
+    .readonly { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; display: block; width: 100%; padding: 12px 14px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 0.8rem; color: #4b5563; word-break: break-all; line-height: 1.4; }
+    .readonly-label { display: block; font-size: 0.65rem; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+    select, input[type="text"] { width: 100%; padding: 13px 14px; border: 1px solid #d1d5db; border-radius: 10px; font-size: 0.95rem; background: #fff; color: #111827; appearance: none; -webkit-appearance: none; }
+    select:focus, input[type="text"]:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.12); }
+    .select-wrap { position: relative; }
+    .select-wrap::after { content: ""; position: absolute; right: 16px; top: 50%; width: 10px; height: 10px; border-right: 2px solid #9ca3af; border-bottom: 2px solid #9ca3af; transform: translateY(-60%) rotate(45deg); pointer-events: none; }
+    footer { text-align: center; font-size: 0.7rem; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.12em; padding: 8px 0 24px; }
+  </style>
   <script>function updateTzVisibility(){var s=document.getElementById('tz_sel'),c=document.getElementById('tz_custom_div');c.style.display=(s.value==='custom')?'block':'none';}</script>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans min-h-screen p-4 sm:p-6 lg:p-8 text-[16px]">
-  <div class="max-w-3xl mx-auto space-y-5 sm:space-y-6">
-    <header class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-      <h1 class="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">JJY Scheduler</h1>
-      <span class="inline-flex items-center px-3 py-1 rounded-full text-xs sm:text-sm font-semibold tracking-wide uppercase )HTML";
+<body>
+  <div class="wrap">
+    <header class="card">
+      <h1>JJY Scheduler</h1>
+      <span class="badge )UIPART";
 
-    page += webOverrideEnabled ? "bg-amber-100 text-amber-800\">WEB_OVERRIDE" : "bg-emerald-100 text-emerald-800\">AUTO_SCHEDULE";
+    page += webOverrideEnabled ? "override\">WEB_OVERRIDE" : "auto\">AUTO_SCHEDULE";
 
-    page += R"HTML(</span>
+    page += R"UIPART(</span>
     </header>
-)HTML";
+)UIPART";
 
     if (coldBootBroadcastActive) {
-        page += "<div class=\"bg-amber-50 border-l-4 border-amber-400 p-4 rounded-xl shadow-sm\"><p class=\"text-sm text-amber-800\"><strong>Cold boot broadcast active.</strong><br class=\"sm:hidden\"> ";
+        page += "<div class=\"alert amber\"><strong>Cold boot broadcast active.</strong> ";
         page += coldBootUiHoldActive ? "Deep sleep paused until SAVE." : "Opening this paused deep sleep.";
-        page += "</p></div>\n";
-    } else if (coldBootUiHoldActive) {
-        page += "<div class=\"bg-blue-50 border-l-4 border-blue-400 p-4 rounded-xl shadow-sm\"><p class=\"text-sm text-blue-800\"><strong>Deep sleep paused:</strong><br class=\"sm:hidden\"> press SAVE to resume.</p></div>\n";
+        page += "</div>\n";
     }
 
-    page += R"HTML(
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-6">
-      <section class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 sm:p-6">
-        <h2 class="text-base sm:text-lg font-semibold text-slate-800 mb-4 sm:mb-5 text-center sm:text-left">Quick Actions</h2>
-        <div class="space-y-3 sm:space-y-4">
-          <a href="/mode?value=auto" class="block w-full text-center px-4 py-3.5 sm:py-2.5 rounded-xl sm:rounded-lg text-sm sm:text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-sm">Set AUTO_SCHEDULE</a>
-          <a href="/mode?value=override" class="block w-full text-center px-4 py-3.5 sm:py-2.5 rounded-xl sm:rounded-lg text-sm sm:text-base font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 transition-colors">Set WEB_OVERRIDE</a>
-          <div class="pt-2">
-            <a href="/save" class="block w-full text-center px-4 py-3.5 sm:py-2.5 rounded-xl sm:rounded-lg text-sm sm:text-base font-medium text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition-colors shadow-sm">Save & Resume Auto Sleep</a>
-          </div>
-          <a href="/sleep" class="block w-full text-center px-4 py-3.5 sm:py-2.5 rounded-xl sm:rounded-lg text-sm sm:text-base font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-sm">Sleep Now</a>
-          <a href="/status" class="block w-full text-center px-4 py-3 sm:py-2.5 rounded-xl sm:rounded-lg text-sm sm:text-base font-medium text-slate-500 hover:text-slate-900 transition-colors">View Status JSON</a>
-        </div>
+    page += R"UIPART(
+    <div class="grid">
+      <section class="card">
+        <h2>Quick Actions</h2>
+        <a href="/mode?value=auto" class="btn btn-primary">Set AUTO_SCHEDULE</a>
+        <a href="/mode?value=override" class="btn btn-secondary">Set WEB_OVERRIDE</a>
+        <a href="/save" class="btn btn-success">Save &amp; Resume Auto Sleep</a>
+        <a href="/sleep" class="btn btn-default">Sleep Now</a>
+        <a href="/status" class="btn btn-ghost">View Status JSON</a>
       </section>
 
-      <section class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 sm:p-6">
-        <h2 class="text-base sm:text-lg font-semibold text-slate-800 mb-4 sm:mb-5">Timezone Settings</h2>
-        <div class="mb-5 sm:mb-6 text-sm text-slate-600">
-          <span class="block mb-1 text-slate-400 font-medium uppercase text-[10px] tracking-wider">Active rule</span>
-          <code class="block w-full p-3 bg-slate-50 rounded-xl sm:rounded-lg border border-slate-200 text-xs font-mono text-slate-600 break-all leading-relaxed">)HTML";
+      <section class="card">
+        <h2>Timezone Settings</h2>
+        <div class="field">
+          <span class="readonly-label">Active rule</span>
+          <code class="readonly">)UIPART";
 
     page += currentTzRule;
 
-    page += R"HTML(</code>
+    page += R"UIPART(</code>
         </div>
-        <form action="/set_tz" method="GET" class="space-y-4 sm:space-y-5">
-          <div>
-            <label for="tz_sel" class="block text-sm font-medium text-slate-700 mb-1.5">Select Timezone</label>
-            <div class="relative">
-              <select id="tz_sel" name="tz" onchange="updateTzVisibility()" class="block w-full px-4 py-3.5 sm:py-2.5 border border-slate-300 rounded-xl sm:rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base bg-white appearance-none">
-                <option value="AEST-10AEDT,M10.1.0,M4.1.0/3">Sydney</option>
+        <form action="/set_tz" method="GET">
+          <div class="field">
+            <label for="tz_sel">Select Timezone</label>
+            <div class="select-wrap">
+              <select id="tz_sel" name="tz" onchange="updateTzVisibility()">
+                <option value="AEST-10AEDT,M10.1.0,M4.1.0/3">Sydney AEDT</option>
                 <option value="JST-9">Japan (JST-9)</option>
                 <option value="UTC0">UTC (UTC0)</option>
                 <option value="custom">Custom...</option>
               </select>
-              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
-                <svg class="h-4 w-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
-              </div>
             </div>
           </div>
-          <div id="tz_custom_div" style="display:none;">
-            <label for="tz_custom" class="block text-sm font-medium text-slate-700 mb-1.5">POSIX Rule</label>
-            <input type="text" id="tz_custom" name="tz_custom" placeholder="e.g. JST-9" class="block w-full px-4 py-3.5 sm:py-2.5 border border-slate-300 rounded-xl sm:rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base bg-white">
+          <div id="tz_custom_div" style="display:none;" class="field">
+            <label for="tz_custom">POSIX Rule</label>
+            <input type="text" id="tz_custom" name="tz_custom" placeholder="e.g. JST-9">
           </div>
-          <button type="submit" onclick="var s=document.getElementById('tz_sel');if(s.value==='custom'){s.value=document.getElementById('tz_custom').value;}" class="w-full flex justify-center py-3.5 sm:py-2.5 px-4 rounded-xl sm:rounded-lg shadow-sm text-sm sm:text-base font-medium text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 transition-colors mt-2">Apply Timezone</button>
+          <button type="submit" onclick="var s=document.getElementById('tz_sel');if(s.value==='custom'){s.value=document.getElementById('tz_custom').value;}" class="btn btn-primary">Apply Timezone</button>
         </form>
       </section>
     </div>
 
-    <footer class="bg-transparent px-2 text-center text-[10px] sm:text-xs text-slate-400 font-medium uppercase tracking-widest">
-      Daily windows: 02:00, 16:00
-    </footer>
+    <footer>Daily windows: 02:00, 16:00</footer>
   </div>
 </body>
-</html>)HTML";
+</html>)UIPART";
 
     webServer.send(200, "text/html", page);
 }
