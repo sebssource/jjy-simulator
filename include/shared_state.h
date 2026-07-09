@@ -3,9 +3,6 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include <WebServer.h>
-#include <driver/mcpwm.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 #include <time.h>
 
 // ----------------------- Hardware / WiFi -----------------------
@@ -36,6 +33,11 @@ extern const uint32_t WIFI_WAKE_LEAD_SECONDS;
 extern const uint32_t TX_START_TOLERANCE_SECONDS;
 extern const uint32_t COLD_BOOT_BROADCAST_SECONDS;
 extern const uint32_t MAIN_LOOP_PERIOD_MS;
+extern const uint32_t WEB_ACTIVITY_HOLD_MS;
+
+extern const int SLOT_INDEX_NONE;
+extern const int SLOT_INDEX_COLD_BOOT;
+extern const int SLOT_INDEX_PERMANENT;
 
 // ----------------------- Carrier / Modulation -----------------------
 extern const uint32_t CARRIER_HZ_DEFAULT;
@@ -43,8 +45,6 @@ extern const uint32_t CARRIER_HZ_MIN;
 extern const uint32_t CARRIER_HZ_MAX;
 extern const uint32_t CARRIER_HZ_STEP;
 extern const float CARRIER_DUTY_TARGET;
-extern const mcpwm_unit_t MCPWM_UNIT;
-extern const mcpwm_timer_t MCPWM_TIMER;
 extern const uint32_t MCPWM_APB_CLK_HZ;
 extern const uint32_t MCPWM_DEADTIME_NS;
 extern const uint32_t CARRIER_RAMP_TOTAL_MS;
@@ -80,8 +80,6 @@ extern bool rampDownStartedForSymbol;
 extern uint8_t rampStepIndex;
 extern uint32_t rampStepStartedMs;
 
-extern Preferences prefs;
-extern bool prefsReady;
 extern const char* NVS_NS;
 extern const char* NVS_KEY_FREQ;
 extern const char* NVS_KEY_WIFI_MODE;
@@ -91,8 +89,11 @@ extern const char* NVS_KEY_WEB_OVERRIDE;
 extern const char* NVS_KEY_PERM_BCAST;
 extern const char* NVS_KEY_TZ;
 
+extern Preferences prefs;
+extern bool prefsReady;
+
 // ----------------------- Persisted modes -----------------------
-enum class WifiMode : uint8_t { AUTO = 0, ON = 1, OFF = 2 };
+enum class WifiMode : uint8_t { AUTO = 0, ON = 1 };
 enum class BroadcastMode : uint8_t { AUTO = 0, ON = 1 };
 enum class SleepMode : uint8_t { AUTO = 0, OFF = 1 };
 
@@ -104,13 +105,19 @@ struct ModeState {
 
 extern ModeState modeState;
 
+// True while a user has recently interacted with the web UI.
+extern uint32_t lastWebActivityMs;
+bool isRecentWebActivity();
+void markWebActivity();
+
+const char* wifiModeLabel(WifiMode mode);
+const char* broadcastModeLabel(BroadcastMode mode);
+const char* sleepModeLabel(SleepMode mode);
+
 void loadModeState();
 void persistModeState(const ModeState& state);
 void applyModeState(const ModeState& state);
 
-// Derived from modeState for compatibility with existing scheduler code.
-extern bool webOverrideEnabled;   // true when wifiMode == ON
-extern bool permanentBroadcastEnabled; // true when broadcastMode == ON
 extern const char* BUILD_INFO;
 extern String currentTzRule;
 
@@ -123,8 +130,6 @@ extern int txWindowSlotIndex;
 extern time_t lastMissedSlotEpoch;
 extern bool coldBootStartupPending;
 extern bool coldBootBroadcastActive;
-extern bool coldBootUiHoldActive;
-extern bool coldBootUiHoldNoticePrinted;
 
 extern const BaseType_t JJY_TASK_CORE;
 extern const BaseType_t NET_TASK_CORE;

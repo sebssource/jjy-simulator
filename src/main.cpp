@@ -137,8 +137,6 @@ void setup()
 
     coldBootStartupPending = isColdBoot;
     coldBootBroadcastActive = false;
-    coldBootUiHoldActive = false;
-    coldBootUiHoldNoticePrinted = false;
 
     pinMode(PIN_TX_LED, OUTPUT);
     setTxLed(false);
@@ -214,6 +212,6 @@ void loop()
         webServer.handleClient();
     }
 
-    updateScheduleController();
+    updateScheduler();
     delay(MAIN_LOOP_PERIOD_MS);
 }

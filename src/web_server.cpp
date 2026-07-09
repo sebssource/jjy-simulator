@@ -1,9 +1,12 @@
 #include "web_server.h"
 
+#include <WebServer.h>
+
 #include "carrier.h"
 #include "scheduler.h"
 #include "shared_state.h"
-#include <WiFi.h>
+
+extern WebServer webServer;
 
 static bool wantsJson()
 {
@@ -15,30 +18,23 @@ static bool wantsJson()
     return fmt == "json";
 }
 
-static String internalModeLabel()
-{
-    String label = "WIFI_";
-    switch (modeState.wifiMode) {
-    case WifiMode::ON: label += "ON"; break;
-    case WifiMode::OFF: label += "OFF"; break;
-    default: label += "AUTO"; break;
-    }
-    label += "/BCAST_";
-    switch (modeState.broadcastMode) {
-    case BroadcastMode::ON: label += "ON"; break;
-    default: label += "AUTO"; break;
-    }
-    label += "/SLEEP_";
-    switch (modeState.sleepMode) {
-    case SleepMode::OFF: label += "OFF"; break;
-    default: label += "AUTO"; break;
-    }
-    return label;
-}
-
 static String buildScheduleFooter()
 {
     return String(BUILD_INFO);
+}
+
+static String internalModeLabel()
+{
+    String label = "WIFI_";
+    label += wifiModeLabel(modeState.wifiMode);
+    label.toUpperCase();
+    label += "/BCAST_";
+    label += broadcastModeLabel(modeState.broadcastMode);
+    label.toUpperCase();
+    label += "/SLEEP_";
+    label += sleepModeLabel(modeState.sleepMode);
+    label.toUpperCase();
+    return label;
 }
 
 static String formatSecondsAsHhMmSs(uint32_t totalSeconds)
@@ -54,36 +50,39 @@ static String formatSecondsAsHhMmSs(uint32_t totalSeconds)
 static String currentModeSummary()
 {
     String summary = "Wi-Fi ";
-    switch (modeState.wifiMode) {
-    case WifiMode::ON: summary += "on"; break;
-    case WifiMode::OFF: summary += "off"; break;
-    default: summary += "auto"; break;
-    }
+    summary += wifiModeLabel(modeState.wifiMode);
     summary += ", Broadcast ";
-    summary += (modeState.broadcastMode == BroadcastMode::ON) ? "on" : "auto";
+    summary += broadcastModeLabel(modeState.broadcastMode);
     return summary;
 }
 
 static String currentModeBadge()
 {
-    return "auto\">" + currentModeSummary();
+    const char* cls;
+    if (modeState.broadcastMode == BroadcastMode::ON) {
+        cls = "perm";
+    } else if (modeState.wifiMode == WifiMode::ON) {
+        cls = "override";
+    } else if (modeState.sleepMode == SleepMode::OFF) {
+        cls = "sleep";
+    } else {
+        cls = "auto";
+    }
+    return String(cls) + "\">" + currentModeSummary();
 }
 
 static String currentModeName()
 {
     if (modeState.broadcastMode == BroadcastMode::ON) {
-        return "Always Transmit";
+        return String("Always Transmit");
     }
     if (modeState.wifiMode == WifiMode::ON) {
-        return "Always-On Wi-Fi";
-    }
-    if (modeState.wifiMode == WifiMode::OFF) {
-        return "Wi-Fi Off";
+        return String("Always-On Wi-Fi");
     }
     if (modeState.sleepMode == SleepMode::OFF) {
-        return "No Deep Sleep";
+        return String("No Deep Sleep");
     }
-    return "Automatic Daily Broadcasts";
+    return String("Automatic Daily Broadcasts");
 }
 
 static String htmlHead(const String& title)
@@ -128,8 +127,6 @@ static String htmlHead(const String& title)
     .btn-wide { grid-column: span 2; }
     .btn-default { background: #fff; color: #374151; border: 1px solid #d1d5db; }
     .btn-default:hover { background: #f9fafb; }
-    .btn-ghost { background: transparent; color: #6b7280; }
-    .btn-ghost:hover { color: #111827; }
     .field { margin-bottom: 18px; }
     label { display: block; font-size: 0.9rem; font-weight: 500; color: #374151; margin-bottom: 6px; }
     .readonly { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; display: block; width: 100%; padding: 12px 14px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 0.8rem; color: #4b5563; word-break: break-all; line-height: 1.4; }
@@ -164,7 +161,8 @@ static void sendHtmlResult(const String& title, const String& message, const Str
     <section class="card">
       <p style="font-size:1rem;color:#374151;">)UIPART";
     page += message;
-    page += R"UIPART(</p>)UIPART";
+    page += R"UIPART(</p>
+)UIPART";
 
     if (detail.length() > 0) {
         page += R"UIPART(<p style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.85rem;color:#6b7280;margin-top:12px;">)UIPART";
@@ -184,76 +182,9 @@ static void sendHtmlResult(const String& title, const String& message, const Str
     webServer.send(200, "text/html", page);
 }
 
-void setWebOverrideMode(bool enabled)
-{
-    ModeState next = modeState;
-    next.wifiMode = enabled ? WifiMode::ON : WifiMode::AUTO;
-    if (next.broadcastMode == BroadcastMode::ON && enabled) {
-        next.broadcastMode = BroadcastMode::AUTO;
-    }
-    applyModeState(next);
-    persistModeState(next);
-
-    Serial.printf("[WEB] Override mode %s\n", enabled ? "ENABLED (deep sleep paused)" : "DISABLED (auto schedule)");
-}
-
-void setPermanentBroadcastMode(bool enabled)
-{
-    ModeState next = modeState;
-    if (next.broadcastMode == (enabled ? BroadcastMode::ON : BroadcastMode::AUTO)) {
-        return;
-    }
-    next.broadcastMode = enabled ? BroadcastMode::ON : BroadcastMode::AUTO;
-
-    if (enabled) {
-        // Make sure AUTO Wi-Fi doesn't disable the radio while active.
-        if (next.wifiMode == WifiMode::AUTO) {
-            next.wifiMode = WifiMode::ON;
-        }
-
-        // Take over any running window (including cold-boot) so the device does
-        // not revert to auto-sleep when a timer expires.
-        coldBootStartupPending = false;
-        if (txWindowActive || coldBootBroadcastActive || coldBootUiHoldActive) {
-            stopTxWindow("permanent broadcast requested");
-        }
-        coldBootBroadcastActive = false;
-        coldBootUiHoldActive = false;
-        coldBootUiHoldNoticePrinted = false;
-    } else {
-        applyModeState(next);
-
-        const time_t nowEpoch = time(nullptr);
-        // Stop the open-ended permanent window, or a scheduled window whose end
-        // has already passed while permanent mode was on. Allow an ongoing
-        // scheduled daily window to continue so auto-mode behaves normally.
-        if (txWindowActive && (txWindowSlotIndex == -2 || nowEpoch >= txWindowEndEpoch)) {
-            stopTxWindow("permanent broadcast disabled");
-        }
-    }
-
-    applyModeState(next);
-    persistModeState(next);
-
-    Serial.printf("[WEB] Permanent broadcast mode %s\n", enabled ? "ENABLED" : "DISABLED");
-}
-
-void markUiSessionActive()
-{
-    if (!coldBootBroadcastActive) {
-        return;
-    }
-
-    if (!coldBootUiHoldActive) {
-        coldBootUiHoldActive = true;
-        coldBootUiHoldNoticePrinted = false;
-        Serial.println("[BOOT] Web UI opened during cold-boot broadcast. Deep sleep paused until /save.");
-    }
-}
-
 void handleWebRoot()
 {
-    markUiSessionActive();
+    markWebActivity();
 
     String page;
     page.reserve(5200);
@@ -271,18 +202,18 @@ void handleWebRoot()
 
     page += R"UIPART(</span>
     </header>
-    )UIPART";
+)UIPART";
 
     if (modeState.broadcastMode == BroadcastMode::ON) {
         page += R"UIPART(
-    <div class="alert red"><strong>Permanent broadcast is active.</strong> Device stays awake and the carrier transmits continuously. Wi-Fi is kept on for this session.</div>
+    <div class="alert red"><strong>Permanent broadcast is active.</strong> Device stays awake and the carrier transmits continuously. Wi-Fi is kept on.</div>
 )UIPART";
     }
 
     if (coldBootBroadcastActive) {
-        page += "<div class=\"alert amber\"><strong>Cold boot broadcast active.</strong> ";
-        page += coldBootUiHoldActive ? "Deep sleep paused until SAVE." : "Opening this paused deep sleep.";
-        page += "</div>\n";
+        page += R"UIPART(
+    <div class="alert amber"><strong>Cold boot broadcast active.</strong> Auto deep sleep is paused while the window runs.</div>
+)UIPART";
     }
 
     page += R"UIPART(
@@ -361,15 +292,15 @@ void handleWebRoot()
         <h2>Saved Settings</h2>
         <div class="readonly-label">Wi-Fi mode</div>
         <div class="readonly" style="margin-bottom:12px;">)UIPART";
-    page += modeState.wifiMode == WifiMode::ON ? "On" : (modeState.wifiMode == WifiMode::OFF ? "Off" : "Auto");
+    page += wifiModeLabel(modeState.wifiMode);
     page += R"UIPART(</div>
         <div class="readonly-label">Broadcast mode</div>
         <div class="readonly" style="margin-bottom:12px;">)UIPART";
-    page += modeState.broadcastMode == BroadcastMode::ON ? "On" : "Auto";
+    page += broadcastModeLabel(modeState.broadcastMode);
     page += R"UIPART(</div>
         <div class="readonly-label">Deep sleep mode</div>
         <div class="readonly" style="margin-bottom:12px;">)UIPART";
-    page += modeState.sleepMode == SleepMode::OFF ? "Stay awake" : "Auto";
+    page += (modeState.sleepMode == SleepMode::OFF) ? "Stay awake" : "Auto";
     page += R"UIPART(</div>
         <div class="readonly-label">Carrier frequency</div>
         <div class="readonly">)UIPART";
@@ -379,25 +310,22 @@ void handleWebRoot()
     </div>
 
     <script>function updateTzVisibility(){var s=document.getElementById('tz_sel'),c=document.getElementById('tz_custom_div');c.style.display=(s.value==='custom')?'block':'none';}</script>
-    )UIPART";
-
-    page += "<footer>" + buildScheduleFooter() + "</footer>\n";
-
-    page += R"UIPART(  </div>
+    <footer>)UIPART";
+    page += buildScheduleFooter();
+    page += R"UIPART(</footer>
+  </div>
 </body>
 </html>)UIPART";
 
     webServer.send(200, "text/html", page);
 }
 
-void handleWebStatus()
+static void sendJsonStatus()
 {
-    markUiSessionActive();
-
     const time_t nowEpoch = time(nullptr);
 
     time_t nextSlotEpoch = 0;
-    int nextSlotIndex = -1;
+    int nextSlotIndex = SLOT_INDEX_NONE;
     const bool haveNextSlot = findNextSlotEpoch(nowEpoch, nextSlotEpoch, nextSlotIndex);
     const time_t nextWakeEpoch = haveNextSlot ? (nextSlotEpoch - static_cast<time_t>(WIFI_WAKE_LEAD_SECONDS)) : 0;
 
@@ -406,29 +334,45 @@ void handleWebStatus()
         coldBootBroadcastRemainingSec = static_cast<uint32_t>(txWindowEndEpoch - nowEpoch);
     }
 
+    String json = "{";
+    json += "\"mode\":\"" + internalModeLabel() + "\",";
+    json += "\"wifi_mode\":\"" + String(wifiModeLabel(modeState.wifiMode)) + "\",";
+    json += "\"broadcast_mode\":\"" + String(broadcastModeLabel(modeState.broadcastMode)) + "\",";
+    json += "\"sleep_mode\":\"" + String(sleepModeLabel(modeState.sleepMode)) + "\",";
+    json += "\"time\":\"" + formatEpochLocal(nowEpoch) + "\",";
+    json += "\"tz_rule\":\"" + currentTzRule + "\",";
+    json += "\"next_slot\":\"" + (haveNextSlot ? formatEpochLocal(nextSlotEpoch) : String("n/a")) + "\",";
+    json += "\"next_wake\":\"" + (haveNextSlot ? formatEpochLocal(nextWakeEpoch) : String("n/a")) + "\",";
+    json += "\"next_slot_index\":" + String(nextSlotIndex) + ",";
+    json += "\"tx_active\":" + String(txWindowActive ? "true" : "false") + ",";
+    json += "\"cold_boot_startup_pending\":" + String(coldBootStartupPending ? "true" : "false") + ",";
+    json += "\"cold_boot_broadcast_active\":" + String(coldBootBroadcastActive ? "true" : "false") + ",";
+    json += "\"cold_boot_broadcast_remaining_sec\":" + String(coldBootBroadcastRemainingSec) + ",";
+    json += "\"recent_web_activity\":" + String(isRecentWebActivity() ? "true" : "false");
+    json += "}";
+    webServer.send(200, "application/json", json);
+}
+
+void handleWebStatus()
+{
+    markWebActivity();
+
     if (wantsJson()) {
-        String json = "{";
-        json += "\"mode\":\"" + internalModeLabel() + "\",";
-        json += "\"wifi_mode\":\"" + String(modeState.wifiMode == WifiMode::ON ? "on" : (modeState.wifiMode == WifiMode::OFF ? "off" : "auto")) + "\",";
-        json += "\"broadcast_mode\":\"" + String(modeState.broadcastMode == BroadcastMode::ON ? "on" : "auto") + "\",";
-        json += "\"sleep_mode\":\"" + String(modeState.sleepMode == SleepMode::OFF ? "off" : "auto") + "\",";
-        json += "\"time\":\"" + formatEpochLocal(nowEpoch) + "\",";
-        json += "\"tz_rule\":\"" + currentTzRule + "\",";
-        json += "\"next_slot\":\"" + (haveNextSlot ? formatEpochLocal(nextSlotEpoch) : String("n/a")) + "\",";
-        json += "\"next_wake\":\"" + (haveNextSlot ? formatEpochLocal(nextWakeEpoch) : String("n/a")) + "\",";
-        json += "\"next_slot_index\":" + String(nextSlotIndex) + ",";
-        json += "\"tx_active\":" + String(txWindowActive ? "true" : "false") + ",";
-        json += "\"cold_boot_startup_pending\":" + String(coldBootStartupPending ? "true" : "false") + ",";
-        json += "\"cold_boot_broadcast_active\":" + String(coldBootBroadcastActive ? "true" : "false") + ",";
-        json += "\"cold_boot_broadcast_remaining_sec\":" + String(coldBootBroadcastRemainingSec) + ",";
-        json += "\"cold_boot_ui_hold\":" + String(coldBootUiHoldActive ? "true" : "false");
-        json += "}";
-        webServer.send(200, "application/json", json);
+        sendJsonStatus();
         return;
     }
 
-    String modeLabel = currentModeName();
-    String modeBadge = currentModeBadge();
+    const time_t nowEpoch = time(nullptr);
+
+    time_t nextSlotEpoch = 0;
+    int nextSlotIndex = SLOT_INDEX_NONE;
+    const bool haveNextSlot = findNextSlotEpoch(nowEpoch, nextSlotEpoch, nextSlotIndex);
+    const time_t nextWakeEpoch = haveNextSlot ? (nextSlotEpoch - static_cast<time_t>(WIFI_WAKE_LEAD_SECONDS)) : 0;
+
+    uint32_t coldBootBroadcastRemainingSec = 0;
+    if (coldBootBroadcastActive && isValidEpoch(nowEpoch) && txWindowEndEpoch > nowEpoch) {
+        coldBootBroadcastRemainingSec = static_cast<uint32_t>(txWindowEndEpoch - nowEpoch);
+    }
 
     String page;
     page.reserve(4200);
@@ -442,7 +386,7 @@ void handleWebStatus()
       <h1>JJY Status</h1>
       <span class="badge )UIPART";
 
-    page += modeBadge;
+    page += currentModeBadge();
 
     page += R"UIPART(</span>
     </header>
@@ -450,7 +394,7 @@ void handleWebStatus()
     <section class="card">
       <h2>Current State</h2>
       <div class="kv"><span class="k">Mode</span><span class="v">)UIPART";
-    page += modeLabel;
+    page += currentModeName();
     page += R"UIPART(</span></div>
       <div class="kv"><span class="k">Local Time</span><span class="v">)UIPART";
     page += formatEpochLocal(nowEpoch);
@@ -465,13 +409,13 @@ void handleWebStatus()
     page += txWindowActive ? "Yes" : "No";
     page += R"UIPART(</span></div>
       <div class="kv"><span class="k">Wi-Fi Mode</span><span class="v">)UIPART";
-    page += modeState.wifiMode == WifiMode::ON ? "On" : (modeState.wifiMode == WifiMode::OFF ? "Off" : "Auto");
+    page += wifiModeLabel(modeState.wifiMode);
     page += R"UIPART(</span></div>
       <div class="kv"><span class="k">Broadcast Mode</span><span class="v">)UIPART";
-    page += modeState.broadcastMode == BroadcastMode::ON ? "On" : "Auto";
+    page += broadcastModeLabel(modeState.broadcastMode);
     page += R"UIPART(</span></div>
       <div class="kv"><span class="k">Sleep Mode</span><span class="v">)UIPART";
-    page += modeState.sleepMode == SleepMode::OFF ? "Off" : "Auto";
+    page += sleepModeLabel(modeState.sleepMode);
     page += R"UIPART(</span></div>
       <div class="kv"><span class="k">Next Slot</span><span class="v">)UIPART";
     page += haveNextSlot ? formatEpochLocal(nextSlotEpoch) : "n/a";
@@ -485,8 +429,8 @@ void handleWebStatus()
       <div class="kv"><span class="k">Cold Boot Broadcast</span><span class="v">)UIPART";
     page += coldBootBroadcastActive ? (formatSecondsAsHhMmSs(coldBootBroadcastRemainingSec) + " remaining") : "No";
     page += R"UIPART(</span></div>
-      <div class="kv"><span class="k">Cold Boot UI Hold</span><span class="v">)UIPART";
-    page += coldBootUiHoldActive ? "Yes" : "No";
+      <div class="kv"><span class="k">Recent Web Activity</span><span class="v">)UIPART";
+    page += isRecentWebActivity() ? "Yes" : "No";
     page += R"UIPART(</span></div>
     </section>
 
@@ -494,11 +438,10 @@ void handleWebStatus()
       <a href="/" class="btn btn-primary">Back</a>
     </section>
 
-    )UIPART";
-
-    page += "<footer>" + buildScheduleFooter() + "</footer>\n";
-
-    page += R"UIPART(  </div>
+    <footer>)UIPART";
+    page += buildScheduleFooter();
+    page += R"UIPART(</footer>
+  </div>
 </body>
 </html>)UIPART";
 
@@ -507,7 +450,7 @@ void handleWebStatus()
 
 static void handleWebSetTz()
 {
-    markUiSessionActive();
+    markWebActivity();
 
     if (!webServer.hasArg("tz")) {
         if (wantsJson()) {
@@ -551,13 +494,9 @@ static void handleWebSetTz()
 
 void handleWebMode()
 {
-    markUiSessionActive();
+    markWebActivity();
 
-    String path = webServer.uri();
-    String target;
-    if (path.startsWith("/mode/")) {
-        target = path.substring(6);
-    }
+    const String target = webServer.uri().substring(6);
 
     if (!webServer.hasArg("value")) {
         if (wantsJson()) {
@@ -589,9 +528,7 @@ void handleWebMode()
     } else if (target == "broadcast") {
         if (value == "on" || value == "1" || value == "true") {
             next.broadcastMode = BroadcastMode::ON;
-        } else if (value == "off" || value == "0" || value == "false") {
-            next.broadcastMode = BroadcastMode::AUTO;
-        } else if (value == "auto") {
+        } else if (value == "off" || value == "0" || value == "false" || value == "auto") {
             next.broadcastMode = BroadcastMode::AUTO;
         } else {
             if (wantsJson()) {
@@ -602,9 +539,9 @@ void handleWebMode()
             return;
         }
     } else if (target == "sleep") {
-        if (value == "on" || value == "1" || value == "true") {
+        if (value == "on" || value == "1" || value == "true" || value == "off") {
             next.sleepMode = SleepMode::OFF;
-        } else if (value == "auto" || value == "off" || value == "0" || value == "false") {
+        } else if (value == "auto") {
             next.sleepMode = SleepMode::AUTO;
         } else {
             if (wantsJson()) {
@@ -615,36 +552,19 @@ void handleWebMode()
             return;
         }
     } else {
-        // Legacy /mode endpoint
-        if (value == "permanent") {
-            next.broadcastMode = BroadcastMode::ON;
-        } else if (value == "override") {
-            next.wifiMode = WifiMode::ON;
-        } else if (value == "auto") {
-            next = { WifiMode::AUTO, BroadcastMode::AUTO, SleepMode::AUTO };
+        if (wantsJson()) {
+            webServer.send(400, "application/json", "{\"ok\":false,\"error\":\"unknown mode endpoint\"}");
         } else {
-            if (wantsJson()) {
-                webServer.send(400, "application/json", "{\"ok\":false,\"error\":\"value must be auto|override|permanent\"}");
-            } else {
-                sendHtmlResult("Mode Error", "Unknown mode value.", "Use /mode/wifi, /mode/broadcast, or /mode/sleep.");
-            }
-            return;
+            sendHtmlResult("Mode Error", "Unknown mode endpoint.", "Use /mode/wifi, /mode/broadcast, or /mode/sleep.");
         }
+        return;
     }
 
     applyModeState(next);
     persistModeState(next);
 
-    // side effects
-    if (next.broadcastMode == BroadcastMode::ON && !txWindowActive) {
-        coldBootStartupPending = false;
-    }
-    if (next.broadcastMode == BroadcastMode::AUTO && txWindowActive && txWindowSlotIndex == -2) {
-        stopTxWindow("broadcast mode auto");
-    }
-
-    String modeLabel = internalModeLabel();
-    String modeName = currentModeName();
+    const String modeLabel = internalModeLabel();
+    const String modeName = currentModeName();
 
     if (wantsJson()) {
         webServer.send(200, "application/json", "{\"ok\":true,\"mode\":\"" + modeLabel + "\"}");
@@ -667,10 +587,11 @@ void handleWebMode()
 
 void handleWebSave()
 {
+    markWebActivity();
     persistModeState(modeState);
 
-    String modeLabel = internalModeLabel();
-    String modeName = currentModeName();
+    const String modeLabel = internalModeLabel();
+    const String modeName = currentModeName();
 
     Serial.printf("[WEB] Mode saved to NVS: %s\n", modeLabel.c_str());
 
@@ -679,13 +600,13 @@ void handleWebSave()
         return;
     }
 
-    String message = "Current mode <strong>" + modeName + "</strong> saved to NVS.";
+    const String message = "Current mode <strong>" + modeName + "</strong> saved to NVS.";
     sendHtmlResult("Settings Saved", message);
 }
 
 void handleWebSleep()
 {
-    markUiSessionActive();
+    markWebActivity();
 
     if (wantsJson()) {
         webServer.send(200, "application/json", "{\"ok\":true,\"sleep_request\":\"accepted\"}");
@@ -699,8 +620,6 @@ void handleWebSleep()
     }
     coldBootStartupPending = false;
     coldBootBroadcastActive = false;
-    coldBootUiHoldActive = false;
-    coldBootUiHoldNoticePrinted = false;
 
     const time_t nowEpoch = time(nullptr);
     if (!enterDeepSleepUntilNextSlot(nowEpoch, "WEB_REQUEST")) {
@@ -712,7 +631,6 @@ void setupWebServer()
 {
     webServer.on("/", HTTP_GET, handleWebRoot);
     webServer.on("/status", HTTP_GET, handleWebStatus);
-    webServer.on("/mode", HTTP_GET, handleWebMode);
     webServer.on("/mode/wifi", HTTP_GET, handleWebMode);
     webServer.on("/mode/broadcast", HTTP_GET, handleWebMode);
     webServer.on("/mode/sleep", HTTP_GET, handleWebMode);

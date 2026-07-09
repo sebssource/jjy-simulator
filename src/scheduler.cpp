@@ -1,9 +1,11 @@
 #include "scheduler.h"
 
+#include <esp_sleep.h>
+
 #include "carrier.h"
 #include "jjy.h"
 #include "web_server.h"
-#include <esp_sleep.h>
+#include "wifi_time.h"
 
 bool getCurrentLocalTime(tm& localNow)
 {
@@ -56,7 +58,7 @@ bool findNextSlotEpoch(time_t nowEpoch, time_t& slotEpochOut, int& slotIndexOut)
 
     bool found = false;
     time_t bestEpoch = 0;
-    int bestIndex = -1;
+    int bestIndex = SLOT_INDEX_NONE;
 
     for (int i = 0; i < static_cast<int>(SCHEDULED_SLOT_COUNT); ++i) {
         time_t candidate = buildSlotEpoch(nowLocal, i, 0);
@@ -101,7 +103,22 @@ bool findCurrentSlotEpoch(time_t nowEpoch, time_t& slotEpochOut, int& slotIndexO
     return false;
 }
 
-#include "wifi_time.h"
+static void startWindow(time_t startEpoch, int slotIndex, uint32_t durationSeconds, const char* label)
+{
+    txWindowActive = true;
+    txWindowStartEpoch = startEpoch;
+    txWindowEndEpoch = startEpoch + static_cast<time_t>(durationSeconds);
+    txWindowSlotIndex = slotIndex;
+    currentSecond = -1;
+    symbolOnPhaseActive = false;
+    carrierOff();
+
+    Serial.printf("[SCHED] %s START idx=%d at %s, end=%s\n",
+        label,
+        slotIndex,
+        formatEpochLocal(txWindowStartEpoch).c_str(),
+        formatEpochLocal(txWindowEndEpoch).c_str());
+}
 
 void startColdBootBroadcastWindow(time_t nowEpoch)
 {
@@ -109,51 +126,24 @@ void startColdBootBroadcastWindow(time_t nowEpoch)
         return;
     }
 
-    txWindowActive = true;
-    txWindowStartEpoch = nowEpoch;
-    txWindowEndEpoch = nowEpoch + static_cast<time_t>(COLD_BOOT_BROADCAST_SECONDS);
-    txWindowSlotIndex = -1;
-    currentSecond = -1;
-    symbolOnPhaseActive = false;
-    carrierOff();
-
+    startWindow(nowEpoch, SLOT_INDEX_COLD_BOOT, COLD_BOOT_BROADCAST_SECONDS, "Cold-boot broadcast");
     coldBootStartupPending = false;
     coldBootBroadcastActive = true;
-
-    Serial.printf("[BOOT] Cold-boot broadcast START at %s, end=%s (%lu sec)\n",
-        formatEpochLocal(txWindowStartEpoch).c_str(),
-        formatEpochLocal(txWindowEndEpoch).c_str(),
-        static_cast<unsigned long>(COLD_BOOT_BROADCAST_SECONDS));
 }
 
 void startTxWindow(time_t slotEpoch, int slotIndex)
 {
-    txWindowActive = true;
-    txWindowStartEpoch = slotEpoch;
-    if (slotIndex == -2) {
-        txWindowEndEpoch = slotEpoch + static_cast<time_t>(365 * 24 * 60 * 60);
-    } else {
-        txWindowEndEpoch = slotEpoch + static_cast<time_t>(TX_WINDOW_SECONDS);
-    }
-    txWindowSlotIndex = slotIndex;
-    currentSecond = -1;
-    symbolOnPhaseActive = false;
-    carrierOff();
+    startWindow(slotEpoch, slotIndex, TX_WINDOW_SECONDS, "TX window");
+}
 
-    if (slotIndex == -2) {
-        Serial.printf("[SCHED] TX window START (permanent broadcast) at %s\n",
-            formatEpochLocal(txWindowStartEpoch).c_str());
-    } else {
-        Serial.printf("[SCHED] TX window START idx=%d at %s, end=%s\n",
-            txWindowSlotIndex,
-            formatEpochLocal(txWindowStartEpoch).c_str(),
-            formatEpochLocal(txWindowEndEpoch).c_str());
-    }
+void startPermanentBroadcast(time_t nowEpoch)
+{
+    startWindow(nowEpoch, SLOT_INDEX_PERMANENT, 365UL * 24UL * 60UL * 60UL, "Permanent broadcast");
 }
 
 void stopTxWindow(const char* reason)
 {
-    if (permanentBroadcastEnabled && txWindowActive) {
+    if (modeState.broadcastMode == BroadcastMode::ON && txWindowActive) {
         Serial.printf("[SCHED] TX window stop request ignored while permanent broadcast is active.\n");
         return;
     }
@@ -171,13 +161,11 @@ void stopTxWindow(const char* reason)
     Serial.printf("[SCHED] TX window STOP (%s) at %s\n",
         reason,
         formatEpochLocal(time(nullptr)).c_str());
-    txWindowSlotIndex = -1;
+    txWindowSlotIndex = SLOT_INDEX_NONE;
 
     if (wasColdBootBroadcast) {
         coldBootBroadcastActive = false;
-        if (coldBootUiHoldActive) {
-            Serial.println("[BOOT] Cold-boot broadcast ended. Waiting for /save before deep sleep.");
-        }
+        Serial.println("[BOOT] Cold-boot broadcast ended.");
     }
 }
 
@@ -189,7 +177,7 @@ bool enterDeepSleepUntilNextSlot(time_t nowEpoch, const char* trigger)
     }
 
     time_t nextSlotEpoch = 0;
-    int nextSlotIndex = -1;
+    int nextSlotIndex = SLOT_INDEX_NONE;
     if (!findNextSlotEpoch(nowEpoch, nextSlotEpoch, nextSlotIndex)) {
         Serial.printf("[SLEEP] %s: next slot unavailable.\n", trigger);
         return false;
@@ -216,10 +204,9 @@ bool enterDeepSleepUntilNextSlot(time_t nowEpoch, const char* trigger)
     carrierOff();
     symbolOnPhaseActive = false;
     txWindowActive = false;
-    txWindowSlotIndex = -1;
+    txWindowSlotIndex = SLOT_INDEX_NONE;
     coldBootStartupPending = false;
     coldBootBroadcastActive = false;
-    coldBootUiHoldNoticePrinted = false;
     Serial.flush();
 
     esp_sleep_enable_timer_wakeup(sleepSeconds * 1000000ULL);
@@ -228,57 +215,41 @@ bool enterDeepSleepUntilNextSlot(time_t nowEpoch, const char* trigger)
     return true;
 }
 
-bool maybeEnterDeepSleep(time_t nowEpoch)
+static bool shouldStayAwake()
 {
-    if (modeState.broadcastMode == BroadcastMode::ON
+    return modeState.broadcastMode == BroadcastMode::ON
         || modeState.wifiMode == WifiMode::ON
         || txWindowActive
-        || coldBootStartupPending) {
-        return false;
-    }
-
-    if (!isValidEpoch(nowEpoch)) {
-        return false;
-    }
-
-    if (modeState.sleepMode == SleepMode::OFF) {
-        if (!coldBootUiHoldActive) {
-            return false;
-        }
-    }
-
-    if (coldBootUiHoldActive) {
-        if (!coldBootUiHoldNoticePrinted) {
-            Serial.println("[BOOT] Deep sleep paused by UI activity during cold-boot broadcast. Press /save to continue.");
-            coldBootUiHoldNoticePrinted = true;
-        }
-        return false;
-    }
-
-    coldBootUiHoldNoticePrinted = false;
-    return enterDeepSleepUntilNextSlot(nowEpoch, "AUTO_SCHEDULE");
+        || coldBootStartupPending;
 }
 
-void updateScheduleController()
+static void updateBroadcastState(time_t nowEpoch)
 {
-    const time_t nowEpoch = time(nullptr);
-    if (!isValidEpoch(nowEpoch)) {
+    if (modeState.broadcastMode == BroadcastMode::ON) {
+        if (!txWindowActive || txWindowSlotIndex != SLOT_INDEX_PERMANENT) {
+            startPermanentBroadcast(nowEpoch);
+        }
         return;
     }
 
-    // State-machine-driven broadcast control.
-    if (modeState.broadcastMode == BroadcastMode::ON) {
-        // Permanent broadcast: keep an open-ended window alive.
-        if (!txWindowActive) {
-            startTxWindow(nowEpoch, -2);
-        }
-    } else if (coldBootStartupPending && !txWindowActive) {
+    if (txWindowActive && txWindowSlotIndex == SLOT_INDEX_PERMANENT) {
+        stopTxWindow("permanent broadcast disabled");
+        return;
+    }
+
+    if (coldBootStartupPending && !txWindowActive) {
         startColdBootBroadcastWindow(nowEpoch);
-    } else if (txWindowActive && nowEpoch >= txWindowEndEpoch) {
+        return;
+    }
+
+    if (txWindowActive && nowEpoch >= txWindowEndEpoch) {
         stopTxWindow("window complete");
-    } else if (!txWindowActive) {
+        return;
+    }
+
+    if (!txWindowActive) {
         time_t currentSlotEpoch = 0;
-        int currentSlotIndex = -1;
+        int currentSlotIndex = SLOT_INDEX_NONE;
         if (findCurrentSlotEpoch(nowEpoch, currentSlotEpoch, currentSlotIndex)) {
             if (nowEpoch <= (currentSlotEpoch + static_cast<time_t>(TX_START_TOLERANCE_SECONDS))) {
                 startTxWindow(currentSlotEpoch, currentSlotIndex);
@@ -292,17 +263,48 @@ void updateScheduleController()
             }
         }
     }
+}
 
-    // Apply Wi-Fi power policy based on user mode and schedule state.
+static void updateWifiPowerState()
+{
     const bool wifiNeededNow = txWindowActive || coldBootBroadcastActive;
-    if (modeState.wifiMode == WifiMode::OFF) {
-        setWifiPowerState(false);
-    } else if (modeState.wifiMode == WifiMode::ON || wifiNeededNow) {
+    if (modeState.wifiMode == WifiMode::ON || wifiNeededNow) {
         setWifiPowerState(true);
     } else {
-        // AUTO and no active window: allow modem sleep.
+        // AUTO with no active window: allow modem sleep.
         setWifiAutoMode();
     }
+}
 
-    maybeEnterDeepSleep(nowEpoch);
+static void updateSleepState(time_t nowEpoch)
+{
+    if (!isValidEpoch(nowEpoch)) {
+        return;
+    }
+
+    if (shouldStayAwake()) {
+        return;
+    }
+
+    if (modeState.sleepMode == SleepMode::OFF && !isRecentWebActivity()) {
+        return;
+    }
+
+    if (isRecentWebActivity()) {
+        return;
+    }
+
+    enterDeepSleepUntilNextSlot(nowEpoch, "AUTO_SCHEDULE");
+}
+
+void updateScheduler()
+{
+    const time_t nowEpoch = time(nullptr);
+    if (!isValidEpoch(nowEpoch)) {
+        return;
+    }
+
+    updateBroadcastState(nowEpoch);
+    updateWifiPowerState();
+    updateSleepState(nowEpoch);
 }

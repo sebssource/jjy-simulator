@@ -1,5 +1,8 @@
 #pragma once
 
+#include <Arduino.h>
+#include <WiFi.h>
+
 #include "shared_state.h"
 
 void connectWifi();
@@ -11,4 +14,3 @@ void periodicResync();
 void setWifiPowerState(bool highPower);
 void setWifiAutoMode();
 void disconnectWifi();
-

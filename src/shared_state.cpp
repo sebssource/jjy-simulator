@@ -1,5 +1,11 @@
 #include "shared_state.h"
 
+#include <Preferences.h>
+#include <WebServer.h>
+#include <driver/mcpwm.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+
 #include "secrets.h"
 
 // ----------------------- Hardware / WiFi -----------------------
@@ -34,6 +40,11 @@ const uint32_t WIFI_WAKE_LEAD_SECONDS = 2UL * 60UL;
 const uint32_t TX_START_TOLERANCE_SECONDS = 1;
 const uint32_t COLD_BOOT_BROADCAST_SECONDS = 30UL * 60UL;
 const uint32_t MAIN_LOOP_PERIOD_MS = 25;
+const uint32_t WEB_ACTIVITY_HOLD_MS = 10UL * 60UL * 1000UL;
+
+const int SLOT_INDEX_NONE = -1;
+const int SLOT_INDEX_COLD_BOOT = -1;
+const int SLOT_INDEX_PERMANENT = -2;
 
 // ----------------------- Carrier / Modulation -----------------------
 const uint32_t CARRIER_HZ_DEFAULT = 40000;
@@ -41,8 +52,6 @@ const uint32_t CARRIER_HZ_MIN = 39500;
 const uint32_t CARRIER_HZ_MAX = 40500;
 const uint32_t CARRIER_HZ_STEP = 10;
 const float CARRIER_DUTY_TARGET = 45.0f;
-const mcpwm_unit_t MCPWM_UNIT = MCPWM_UNIT_0;
-const mcpwm_timer_t MCPWM_TIMER = MCPWM_TIMER_0;
 const uint32_t MCPWM_APB_CLK_HZ = 80000000;
 const uint32_t MCPWM_DEADTIME_NS = 150;
 const uint32_t CARRIER_RAMP_TOTAL_MS = 5;
@@ -90,8 +99,8 @@ const char* NVS_KEY_PERM_BCAST = "perm_bcst";
 const char* NVS_KEY_TZ = "tz_rule";
 
 ModeState modeState = { WifiMode::AUTO, BroadcastMode::AUTO, SleepMode::AUTO };
-bool webOverrideEnabled = false;
-bool permanentBroadcastEnabled = false;
+
+uint32_t lastWebActivityMs = 0;
 
 const char* BUILD_INFO = "Built " __DATE__ " " __TIME__;
 
@@ -103,12 +112,10 @@ bool txWindowActive = false;
 
 time_t txWindowStartEpoch = 0;
 time_t txWindowEndEpoch = 0;
-int txWindowSlotIndex = -1;
+int txWindowSlotIndex = SLOT_INDEX_NONE;
 time_t lastMissedSlotEpoch = 0;
 bool coldBootStartupPending = false;
 bool coldBootBroadcastActive = false;
-bool coldBootUiHoldActive = false;
-bool coldBootUiHoldNoticePrinted = false;
 
 const BaseType_t JJY_TASK_CORE = 1;
 const BaseType_t NET_TASK_CORE = 0;
@@ -122,38 +129,60 @@ const uint32_t NET_TASK_PERIOD_MS = 250;
 TaskHandle_t jjyTaskHandle = nullptr;
 TaskHandle_t netTaskHandle = nullptr;
 
-static void updateDerivedModeFlags()
-{
-    webOverrideEnabled = (modeState.wifiMode == WifiMode::ON);
-    permanentBroadcastEnabled = (modeState.broadcastMode == BroadcastMode::ON);
-}
-
 static uint8_t clampMode(uint8_t value, uint8_t max)
 {
-    if (value > max) {
-        return 0;
+    return (value > max) ? 0 : value;
+}
+
+const char* wifiModeLabel(WifiMode mode)
+{
+    switch (mode) {
+    case WifiMode::ON:  return "on";
+    default:            return "auto";
     }
-    return value;
+}
+
+const char* broadcastModeLabel(BroadcastMode mode)
+{
+    switch (mode) {
+    case BroadcastMode::ON: return "on";
+    default:                return "auto";
+    }
+}
+
+const char* sleepModeLabel(SleepMode mode)
+{
+    switch (mode) {
+    case SleepMode::OFF: return "off";
+    default:             return "auto";
+    }
+}
+
+bool isRecentWebActivity()
+{
+    return (millis() - lastWebActivityMs) < WEB_ACTIVITY_HOLD_MS;
+}
+
+void markWebActivity()
+{
+    lastWebActivityMs = millis();
 }
 
 void loadModeState()
 {
     if (!prefsReady) {
         modeState = { WifiMode::AUTO, BroadcastMode::AUTO, SleepMode::AUTO };
-        updateDerivedModeFlags();
         return;
     }
 
-    // First, try the new keys.
     bool loaded = false;
     if (prefs.isKey(NVS_KEY_WIFI_MODE)) {
-        modeState.wifiMode = static_cast<WifiMode>(clampMode(prefs.getUChar(NVS_KEY_WIFI_MODE, 0), 2));
+        modeState.wifiMode = static_cast<WifiMode>(clampMode(prefs.getUChar(NVS_KEY_WIFI_MODE, 0), 1));
         modeState.broadcastMode = static_cast<BroadcastMode>(clampMode(prefs.getUChar(NVS_KEY_BROADCAST_MODE, 0), 1));
         modeState.sleepMode = static_cast<SleepMode>(clampMode(prefs.getUChar(NVS_KEY_SLEEP_MODE, 0), 1));
         loaded = true;
     }
 
-    // Fall back to legacy boolean flags once.
     if (!loaded && (prefs.isKey(NVS_KEY_WEB_OVERRIDE) || prefs.isKey(NVS_KEY_PERM_BCAST))) {
         const bool legacyWebOverride = prefs.getBool(NVS_KEY_WEB_OVERRIDE, false);
         const bool legacyPermBcast = prefs.getBool(NVS_KEY_PERM_BCAST, false);
@@ -162,7 +191,6 @@ void loadModeState()
         modeState.broadcastMode = legacyPermBcast ? BroadcastMode::ON : BroadcastMode::AUTO;
         modeState.sleepMode = SleepMode::AUTO;
 
-        // Migrate and remove legacy keys so the fallback runs only once.
         persistModeState(modeState);
         prefs.remove(NVS_KEY_WEB_OVERRIDE);
         prefs.remove(NVS_KEY_PERM_BCAST);
@@ -172,8 +200,6 @@ void loadModeState()
     if (!loaded) {
         modeState = { WifiMode::AUTO, BroadcastMode::AUTO, SleepMode::AUTO };
     }
-
-    updateDerivedModeFlags();
 }
 
 void persistModeState(const ModeState& state)
@@ -189,5 +215,4 @@ void persistModeState(const ModeState& state)
 void applyModeState(const ModeState& state)
 {
     modeState = state;
-    updateDerivedModeFlags();
 }

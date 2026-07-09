@@ -1,6 +1,12 @@
 #include "carrier.h"
 
+#include <Preferences.h>
+#include <driver/mcpwm.h>
+
 #include "shared_state.h"
+
+static const mcpwm_unit_t kMcpwmUnit = MCPWM_UNIT_0;
+static const mcpwm_timer_t kMcpwmTimer = MCPWM_TIMER_0;
 
 uint32_t clampCarrierHz(uint32_t hz)
 {
@@ -28,7 +34,7 @@ void reconfigureCarrierTimer(uint32_t hz)
         carrierOff();
     }
 
-    mcpwm_set_frequency(MCPWM_UNIT, MCPWM_TIMER, hz);
+    mcpwm_set_frequency(kMcpwmUnit, kMcpwmTimer, hz);
 
     if (wasOn) {
         carrierOn();
@@ -65,8 +71,8 @@ static uint32_t deadtimeNsToTicks(uint32_t ns)
 static void configureDeadtime()
 {
     const uint32_t dtTicks = deadtimeNsToTicks(MCPWM_DEADTIME_NS);
-    const esp_err_t err = mcpwm_deadtime_enable(MCPWM_UNIT,
-        MCPWM_TIMER,
+    const esp_err_t err = mcpwm_deadtime_enable(kMcpwmUnit,
+        kMcpwmTimer,
         MCPWM_ACTIVE_HIGH_MODE,
         dtTicks,
         dtTicks);
@@ -84,8 +90,8 @@ void setTxLed(bool on)
 
 void setupCarrier()
 {
-    mcpwm_gpio_init(MCPWM_UNIT, MCPWM0A, PIN_IA);
-    mcpwm_gpio_init(MCPWM_UNIT, MCPWM0B, PIN_IB);
+    mcpwm_gpio_init(kMcpwmUnit, MCPWM0A, PIN_IA);
+    mcpwm_gpio_init(kMcpwmUnit, MCPWM0B, PIN_IB);
 
     mcpwm_config_t pwmCfg = { };
     pwmCfg.frequency = currentCarrierHz;
@@ -93,7 +99,7 @@ void setupCarrier()
     pwmCfg.cmpr_b = 0.0f;
     pwmCfg.counter_mode = MCPWM_UP_COUNTER;
     pwmCfg.duty_mode = MCPWM_DUTY_MODE_0;
-    mcpwm_init(MCPWM_UNIT, MCPWM_TIMER, &pwmCfg);
+    mcpwm_init(kMcpwmUnit, kMcpwmTimer, &pwmCfg);
     configureDeadtime();
 
     carrierOff();
@@ -111,19 +117,19 @@ void applyCarrierDuty(float dutyPercent)
     }
 
     if (clampedDuty <= 0.0f) {
-        mcpwm_set_duty_type(MCPWM_UNIT, MCPWM_TIMER, MCPWM_OPR_A, MCPWM_DUTY_MODE_0);
-        mcpwm_set_duty_type(MCPWM_UNIT, MCPWM_TIMER, MCPWM_OPR_B, MCPWM_DUTY_MODE_0);
-        mcpwm_set_duty(MCPWM_UNIT, MCPWM_TIMER, MCPWM_OPR_A, 0.0f);
-        mcpwm_set_duty(MCPWM_UNIT, MCPWM_TIMER, MCPWM_OPR_B, 0.0f);
+        mcpwm_set_duty_type(kMcpwmUnit, kMcpwmTimer, MCPWM_OPR_A, MCPWM_DUTY_MODE_0);
+        mcpwm_set_duty_type(kMcpwmUnit, kMcpwmTimer, MCPWM_OPR_B, MCPWM_DUTY_MODE_0);
+        mcpwm_set_duty(kMcpwmUnit, kMcpwmTimer, MCPWM_OPR_A, 0.0f);
+        mcpwm_set_duty(kMcpwmUnit, kMcpwmTimer, MCPWM_OPR_B, 0.0f);
         carrierIsOn = false;
         setTxLed(false);
         return;
     }
 
-    mcpwm_set_duty_type(MCPWM_UNIT, MCPWM_TIMER, MCPWM_OPR_A, MCPWM_DUTY_MODE_0);
-    mcpwm_set_duty_type(MCPWM_UNIT, MCPWM_TIMER, MCPWM_OPR_B, MCPWM_DUTY_MODE_1);
-    mcpwm_set_duty(MCPWM_UNIT, MCPWM_TIMER, MCPWM_OPR_A, clampedDuty);
-    mcpwm_set_duty(MCPWM_UNIT, MCPWM_TIMER, MCPWM_OPR_B, clampedDuty);
+    mcpwm_set_duty_type(kMcpwmUnit, kMcpwmTimer, MCPWM_OPR_A, MCPWM_DUTY_MODE_0);
+    mcpwm_set_duty_type(kMcpwmUnit, kMcpwmTimer, MCPWM_OPR_B, MCPWM_DUTY_MODE_1);
+    mcpwm_set_duty(kMcpwmUnit, kMcpwmTimer, MCPWM_OPR_A, clampedDuty);
+    mcpwm_set_duty(kMcpwmUnit, kMcpwmTimer, MCPWM_OPR_B, clampedDuty);
     carrierIsOn = true;
     setTxLed(true);
 }
