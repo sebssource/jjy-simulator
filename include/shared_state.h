@@ -15,7 +15,6 @@ extern const char* DEV_DEFAULT_SSID;
 extern const char* DEV_DEFAULT_PASS;
 
 // ----------------------- Time / NTP -----------------------
-extern const char* TZ_SYDNEY;
 extern const char* NTP1;
 extern const char* NTP2;
 

@@ -22,7 +22,6 @@ const char* DEV_DEFAULT_SSID = WIFI_SSID;
 const char* DEV_DEFAULT_PASS = WIFI_PASS;
 
 // ----------------------- Time / NTP -----------------------
-const char* TZ_SYDNEY = "AEST-10AEDT,M10.1.0,M4.1.0/3";
 const char* NTP1 = "pool.ntp.org";
 const char* NTP2 = "time.google.com";
 
