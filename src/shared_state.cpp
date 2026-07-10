@@ -43,8 +43,8 @@ const uint32_t MAIN_LOOP_PERIOD_MS = 25;
 const uint32_t WEB_ACTIVITY_HOLD_MS = 10UL * 60UL * 1000UL;
 
 const int SLOT_INDEX_NONE = -1;
-const int SLOT_INDEX_COLD_BOOT = -1;
 const int SLOT_INDEX_PERMANENT = -2;
+const int SLOT_INDEX_COLD_BOOT = -3;
 
 // ----------------------- Carrier / Modulation -----------------------
 const uint32_t CARRIER_HZ_DEFAULT = 40000;
