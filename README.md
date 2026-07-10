@@ -1,3 +1,17 @@
+# Fork notes
+
+Warning: Vibe coded with Qwen 3.6 27B running on my local machine.
+
+## Features
+* split code into multiple files
+* replaced Tailwind with raw CSS
+* enabled cold boot/scheduled/permanent broadcast
+* enabled scheduled/permanent on Wifi
+* settings saved/restored automatically
+
+TODO: some minor cleanup of the code and UI
+
+--------------------------------
 # JJY 40 kHz Simulator for ESP32
 
 This project is a high-performance JJY (Fukushima 40 kHz) time signal simulator designed for ESP32 and the L9110S motor driver. It allows you to synchronize radio-controlled clocks (like those from Casio, Citizen, etc.) by simulating the Japanese JJY time signal.
