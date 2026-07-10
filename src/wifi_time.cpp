@@ -61,28 +61,6 @@ void periodicResync()
     lastResyncAttemptMs = millis();
 }
 
-static bool s_wifiPowerState = true;
-
-void setWifiPowerState(bool highPower)
-{
-    if (WiFi.status() != WL_CONNECTED && highPower) {
-        connectWifi();
-    }
-
-    if (highPower) {
-        if (WiFi.getSleep()) {
-            Serial.println("[WiFi] Full power mode requested.");
-            WiFi.setSleep(false);
-        }
-    } else {
-        if (s_wifiPowerState || !WiFi.getSleep()) {
-            Serial.println("[WiFi] Wi-Fi disabled by user mode.");
-            disconnectWifi();
-        }
-    }
-    s_wifiPowerState = highPower;
-}
-
 void setWifiAutoMode()
 {
     if (WiFi.status() != WL_CONNECTED) {

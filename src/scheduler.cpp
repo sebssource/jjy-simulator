@@ -269,7 +269,12 @@ static void updateWifiPowerState()
 {
     const bool wifiNeededNow = txWindowActive || coldBootBroadcastActive;
     if (modeState.wifiMode == WifiMode::ON || wifiNeededNow) {
-        setWifiPowerState(true);
+        if (!WiFi.getSleep()) {
+            // already full power
+        } else {
+            Serial.println("[WiFi] Full power mode requested.");
+            WiFi.setSleep(false);
+        }
     } else {
         // AUTO with no active window: allow modem sleep.
         setWifiAutoMode();
