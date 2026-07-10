@@ -8,6 +8,7 @@ Warning: Vibe coded with Qwen 3.6 27B running on my local machine.
 * enabled cold boot/scheduled/permanent broadcast
 * enabled scheduled/permanent on Wifi
 * settings saved/restored automatically
+* added FreeCAD source for a more generic case + lid (not vibe coded)
 
 TODO: some minor cleanup of the code and UI
 
