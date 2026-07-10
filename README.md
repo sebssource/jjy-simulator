@@ -11,7 +11,7 @@ Warning: Vibe coded with Qwen 3.6 27B running on my local machine.
 * added FreeCAD source for a more generic case + lid (not vibe coded)
 
 ## My build notes
-I used a 9mm X 100mm ferrite core and wound 80mm of 0.35mm enameled wire. Bought the same capacitors but measured about 1.7nF of capacitance so I redid the antenna math, changed the number of turns a bit (about 290) and it worked on the first try.
+I used a 9mm X 100mm ferrite core and wound 80mm of 0.35mm enameled wire, leaving about 10mm clear at each end. Bought the same capacitors but measured about 1.7nF of capacitance so I redid the antenna math, changed the number of turns a bit (about 290) and it worked on the first try.
 
 Tested with my Citizen PMD56-2952
 
