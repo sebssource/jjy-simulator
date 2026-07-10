@@ -220,7 +220,8 @@ static bool shouldStayAwake()
     return modeState.broadcastMode == BroadcastMode::ON
         || modeState.wifiMode == WifiMode::ON
         || txWindowActive
-        || coldBootStartupPending;
+        || coldBootStartupPending
+        || isRecentWebActivity();
 }
 
 static void updateBroadcastState(time_t nowEpoch)
@@ -291,11 +292,7 @@ static void updateSleepState(time_t nowEpoch)
         return;
     }
 
-    if (modeState.sleepMode == SleepMode::OFF && !isRecentWebActivity()) {
-        return;
-    }
-
-    if (isRecentWebActivity()) {
+    if (modeState.sleepMode == SleepMode::OFF) {
         return;
     }
 
