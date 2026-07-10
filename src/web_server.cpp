@@ -275,8 +275,7 @@ void handleWebRoot()
           <a href="/mode/sleep?value=auto" class="btn btn-success">Auto</a>
           <a href="/mode/sleep?value=off" class="btn btn-danger">Stay Awake</a>
         </div>
-        <a href="/save" class="btn btn-primary">Save</a>
-        <a href="/sleep" class="btn btn-sleep">Sleep Now</a>
+         <a href="/sleep" class="btn btn-sleep">Sleep Now</a>
         <a href="/status" class="btn btn-status">View Status</a>
       </section>
 
