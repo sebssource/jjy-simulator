@@ -118,7 +118,7 @@ void networkTask(void* arg)
 
     for (;;) {
         if (WiFi.status() != WL_CONNECTED) {
-            connectWifi();
+            connectWifiStep();
         }
         periodicResync();
         vTaskDelay(pdMS_TO_TICKS(NET_TASK_PERIOD_MS));

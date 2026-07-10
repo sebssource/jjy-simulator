@@ -2,27 +2,56 @@
 
 #include "shared_state.h"
 
-void connectWifi()
-{
-    if (WiFi.status() == WL_CONNECTED) {
-        return;
-    }
+enum class WifiConnectState { DISCONNECTED, CONNECTING, CONNECTED };
 
+static WifiConnectState s_wifiState = WifiConnectState::DISCONNECTED;
+static uint32_t s_connectStartMs = 0;
+static const uint32_t WIFI_CONNECT_TIMEOUT_MS = 20000;
+
+static void startWifiConnection()
+{
     Serial.printf("[WiFi] Connecting to SSID: %s\n", DEV_DEFAULT_SSID);
     WiFi.mode(WIFI_STA);
     WiFi.begin(DEV_DEFAULT_SSID, DEV_DEFAULT_PASS);
+    s_connectStartMs = millis();
+    s_wifiState = WifiConnectState::CONNECTING;
+}
 
-    uint32_t startMs = millis();
-    while (WiFi.status() != WL_CONNECTED && (millis() - startMs) < 20000) {
-        delay(250);
-        Serial.print('.');
-    }
-    Serial.println();
-
+// Non-blocking. Returns true once associated. Initiates the association in
+// the background on first call (or after a timeout) and lets the WiFi driver
+// progress asynchronously between calls.
+bool connectWifiStep()
+{
     if (WiFi.status() == WL_CONNECTED) {
-        Serial.printf("[WiFi] Connected. IP: %s\n", WiFi.localIP().toString().c_str());
-    } else {
-        Serial.println("[WiFi] Connection failed. Will retry in loop.");
+        if (s_wifiState != WifiConnectState::CONNECTED) {
+            Serial.printf("[WiFi] Connected. IP: %s\n", WiFi.localIP().toString().c_str());
+        }
+        s_wifiState = WifiConnectState::CONNECTED;
+        return true;
+    }
+
+    if (s_wifiState != WifiConnectState::CONNECTING) {
+        startWifiConnection();
+        return false;
+    }
+
+    if (millis() - s_connectStartMs >= WIFI_CONNECT_TIMEOUT_MS) {
+        Serial.println("[WiFi] Connection timed out; will retry.");
+        WiFi.disconnect(false);
+        s_wifiState = WifiConnectState::DISCONNECTED;
+    }
+    return false;
+}
+
+// Bounded blocking wrapper — used only once during setup().
+void connectWifi()
+{
+    const uint32_t startMs = millis();
+    while (millis() - startMs < WIFI_CONNECT_TIMEOUT_MS) {
+        if (connectWifiStep()) {
+            return;
+        }
+        delay(250);
     }
 }
 
@@ -53,7 +82,8 @@ void periodicResync()
     }
 
     if (WiFi.status() != WL_CONNECTED) {
-        connectWifi();
+        connectWifiStep();
+        return;
     }
 
     Serial.println("[NTP] Periodic re-sync request...");
@@ -64,19 +94,11 @@ void periodicResync()
 void setWifiAutoMode()
 {
     if (WiFi.status() != WL_CONNECTED) {
-        connectWifi();
+        return;
     }
 
     if (!WiFi.getSleep()) {
         Serial.println("[WiFi] AUTO mode: enabling modem sleep between windows.");
         WiFi.setSleep(true);
-    }
-}
-
-void disconnectWifi()
-{
-    if (WiFi.status() == WL_CONNECTED) {
-        WiFi.disconnect();
-        WiFi.mode(WIFI_OFF);
     }
 }
