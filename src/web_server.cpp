@@ -127,6 +127,10 @@ static String htmlHead(const String& title)
     .btn-wide { grid-column: span 2; }
     .btn-default { background: #fff; color: #374151; border: 1px solid #d1d5db; }
     .btn-default:hover { background: #f9fafb; }
+    .btn-sleep { background: #0891b2; color: #fff; }
+    .btn-sleep:hover { background: #0e7490; }
+    .btn-status { background: #d97706; color: #fff; }
+    .btn-status:hover { background: #b45309; }
     .field { margin-bottom: 18px; }
     label { display: block; font-size: 0.9rem; font-weight: 500; color: #374151; margin-bottom: 6px; }
     .readonly { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; display: block; width: 100%; padding: 12px 14px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 0.8rem; color: #4b5563; word-break: break-all; line-height: 1.4; }
@@ -140,6 +144,42 @@ static String htmlHead(const String& title)
     .select-wrap { position: relative; }
     .select-wrap::after { content: ""; position: absolute; right: 16px; top: 50%; width: 10px; height: 10px; border-right: 2px solid #9ca3af; border-bottom: 2px solid #9ca3af; transform: translateY(-60%) rotate(45deg); pointer-events: none; }
     footer { text-align: center; font-size: 0.7rem; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.12em; padding: 8px 0 24px; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #0f172a; color: #e2e8f0; }
+      .card { background: #1e293b; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+      .badge.auto { background: #064e3b; color: #6ee7b7; }
+      .badge.override { background: #78350f; color: #fcd34d; }
+      .badge.perm { background: #7f1d1d; color: #fca5a5; }
+      .badge.off { background: #374151; color: #d1d5db; }
+      .badge.sleep { background: #312e81; color: #a5b4fc; }
+      .alert.amber { background: #451a03; border-left-color: #fbbf24; color: #fcd34d; }
+      .alert.red { background: #450a0a; border-left-color: #f87171; color: #fca5a5; }
+      .btn-primary { background: #6366f1; color: #fff; }
+      .btn-primary:hover { background: #818cf8; }
+      .btn-secondary { background: #312e81; color: #a5b4fc; }
+      .btn-secondary:hover { background: #3730a3; }
+      .btn-success { background: #059669; color: #fff; }
+      .btn-success:hover { background: #34d399; }
+      .btn-danger { background: #dc2626; color: #fff; }
+      .btn-danger:hover { background: #f87171; }
+      .btn-default { background: #1e293b; color: #e2e8f0; border-color: #4b5563; }
+      .btn-default:hover { background: #334155; }
+      .btn-sleep { background: #06b6d4; color: #fff; }
+      .btn-sleep:hover { background: #22d3ee; }
+      .btn-status { background: #f59e0b; color: #1c1917; }
+      .btn-status:hover { background: #fbbf24; }
+      label { color: #d1d5db; }
+      .readonly { background: #1e293b; border-color: #4b5563; color: #cbd5e1; }
+      .readonly-label { color: #6b7280; }
+      .kv { border-bottom-color: #374151; }
+      .kv:last-child { border-bottom: none; }
+      .kv .k { color: #9ca3af; }
+      .kv .v { color: #e2e8f0; }
+      select, input[type="text"] { background: #334155; color: #e2e8f0; border-color: #4b5563; }
+      select:focus, input[type="text"]:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.25); }
+      .select-wrap::after { border-right-color: #6b7280; border-bottom-color: #6b7280; }
+      footer { color: #6b7280; }
+    }
   </style>
 </head>)UIPART";
 }
@@ -236,8 +276,8 @@ void handleWebRoot()
           <a href="/mode/sleep?value=off" class="btn btn-danger">Stay Awake</a>
         </div>
         <a href="/save" class="btn btn-primary">Save</a>
-        <a href="/sleep" class="btn btn-default">Sleep Now</a>
-        <a href="/status" class="btn btn-default">View Status</a>
+        <a href="/sleep" class="btn btn-sleep">Sleep Now</a>
+        <a href="/status" class="btn btn-status">View Status</a>
       </section>
 
       <section class="card">
@@ -289,7 +329,7 @@ void handleWebRoot()
       </section>
 
       <section class="card">
-        <h2>Saved Settings</h2>
+         <h2>Saved Startup Settings</h2>
         <div class="readonly-label">Wi-Fi mode</div>
         <div class="readonly" style="margin-bottom:12px;">)UIPART";
     page += wifiModeLabel(modeState.wifiMode);
@@ -336,18 +376,20 @@ static void sendJsonStatus()
 
     String json = "{";
     json += "\"mode\":\"" + internalModeLabel() + "\",";
-    json += "\"wifi_mode\":\"" + String(wifiModeLabel(modeState.wifiMode)) + "\",";
-    json += "\"broadcast_mode\":\"" + String(broadcastModeLabel(modeState.broadcastMode)) + "\",";
-    json += "\"sleep_mode\":\"" + String(sleepModeLabel(modeState.sleepMode)) + "\",";
+    { String m = wifiModeLabel(modeState.wifiMode); m.toLowerCase(); json += "\"wifi_mode\":\"" + m + "\","; }
+    { String m = broadcastModeLabel(modeState.broadcastMode); m.toLowerCase(); json += "\"broadcast_mode\":\"" + m + "\","; }
+    { String m = sleepModeLabel(modeState.sleepMode); m.toLowerCase(); json += "\"sleep_mode\":\"" + m + "\","; }
     json += "\"time\":\"" + formatEpochLocal(nowEpoch) + "\",";
     json += "\"tz_rule\":\"" + currentTzRule + "\",";
     json += "\"next_slot\":\"" + (haveNextSlot ? formatEpochLocal(nextSlotEpoch) : String("n/a")) + "\",";
     json += "\"next_wake\":\"" + (haveNextSlot ? formatEpochLocal(nextWakeEpoch) : String("n/a")) + "\",";
     json += "\"next_slot_index\":" + String(nextSlotIndex) + ",";
     json += "\"tx_active\":" + String(txWindowActive ? "true" : "false") + ",";
-    json += "\"cold_boot_startup_pending\":" + String(coldBootStartupPending ? "true" : "false") + ",";
-    json += "\"cold_boot_broadcast_active\":" + String(coldBootBroadcastActive ? "true" : "false") + ",";
-    json += "\"cold_boot_broadcast_remaining_sec\":" + String(coldBootBroadcastRemainingSec) + ",";
+    json += "\"cold_boot_state\":\"" +
+            String(coldBootBroadcastActive ? "active" : (coldBootStartupPending ? "pending" : "complete")) + "\",";
+    if (coldBootBroadcastActive) {
+        json += "\"cold_boot_broadcast_remaining_sec\":" + String(coldBootBroadcastRemainingSec) + ",";
+    }
     json += "\"recent_web_activity\":" + String(isRecentWebActivity() ? "true" : "false");
     json += "}";
     webServer.send(200, "application/json", json);
@@ -423,11 +465,12 @@ void handleWebStatus()
       <div class="kv"><span class="k">Next Wake</span><span class="v">)UIPART";
     page += haveNextSlot ? formatEpochLocal(nextWakeEpoch) : "n/a";
     page += R"UIPART(</span></div>
-      <div class="kv"><span class="k">Cold Boot Pending</span><span class="v">)UIPART";
-    page += coldBootStartupPending ? "Yes" : "No";
-    page += R"UIPART(</span></div>
-      <div class="kv"><span class="k">Cold Boot Broadcast</span><span class="v">)UIPART";
-    page += coldBootBroadcastActive ? (formatSecondsAsHhMmSs(coldBootBroadcastRemainingSec) + " remaining") : "No";
+      <div class="kv"><span class="k">Cold Boot</span><span class="v">)UIPART";
+    if (coldBootBroadcastActive) {
+        page += formatSecondsAsHhMmSs(coldBootBroadcastRemainingSec) + " remaining";
+    } else {
+        page += coldBootStartupPending ? "Pending" : "Complete";
+    }
     page += R"UIPART(</span></div>
       <div class="kv"><span class="k">Recent Web Activity</span><span class="v">)UIPART";
     page += isRecentWebActivity() ? "Yes" : "No";

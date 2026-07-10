@@ -137,24 +137,24 @@ static uint8_t clampMode(uint8_t value, uint8_t max)
 const char* wifiModeLabel(WifiMode mode)
 {
     switch (mode) {
-    case WifiMode::ON:  return "on";
-    default:            return "auto";
+    case WifiMode::ON:  return "On";
+    default:            return "Auto";
     }
 }
 
 const char* broadcastModeLabel(BroadcastMode mode)
 {
     switch (mode) {
-    case BroadcastMode::ON: return "on";
-    default:                return "auto";
+    case BroadcastMode::ON: return "On";
+    default:                return "Auto";
     }
 }
 
 const char* sleepModeLabel(SleepMode mode)
 {
     switch (mode) {
-    case SleepMode::OFF: return "off";
-    default:             return "auto";
+    case SleepMode::OFF: return "Off";
+    default:             return "Auto";
     }
 }
 
