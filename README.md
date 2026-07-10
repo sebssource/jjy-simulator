@@ -14,7 +14,8 @@ Warning: Vibe coded with Qwen 3.6 27B running on my local machine.
 I used a 9mm X 100mm ferrite core and wound 80mm of 0.35mm enameled wire. Bought the same capacitors but measured about 1.7nF of capacitance so I redid the antenna math, changed the number of turns a bit (about 290) and it worked on the first try.
 
 ## TODO
-Some minor cleanup of the code and UI
+* some minor cleanup of the code and UI
+* maybe daily schedule UI
 
 --------------------------------
 # JJY 40 kHz Simulator for ESP32
