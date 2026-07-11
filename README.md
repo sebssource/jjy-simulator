@@ -8,7 +8,7 @@ Warning: Vibe coded with Qwen 3.6 27B running on my local machine.
 * enabled cold boot/scheduled/permanent broadcast
 * enabled scheduled/permanent on Wifi
 * settings saved/restored automatically
-* added FreeCAD source for a more generic case + lid (not vibe coded)
+* added FreeCAD source for a more generic case + lid (not vibe coded) and STL files
 
 ## My build notes
 I used a 9mm X 100mm ferrite core and wound 80mm of 0.35mm enameled wire, leaving about 10mm clear at each end. Bought the same capacitors but measured about 1.7nF of capacitance so I redid the antenna math, changed the number of turns a bit (about 290) and it worked on the first try.
@@ -18,6 +18,8 @@ Tested with my Citizen PMD56-2952
 ## TODO
 * some minor cleanup of the code and UI
 * maybe daily schedule UI
+
+![Main page screenshot](https://github.com/sebssource/jjy-simulator/blob/main/screenshots/main%20page.png)
 
 --------------------------------
 # JJY 40 kHz Simulator for ESP32
