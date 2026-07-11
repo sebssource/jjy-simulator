@@ -147,7 +147,7 @@ static String htmlHead(const String& title)
     select:focus, input[type="text"]:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.12); }
     .select-wrap { position: relative; }
     .select-wrap::after { content: ""; position: absolute; right: 16px; top: 50%; width: 10px; height: 10px; border-right: 2px solid #9ca3af; border-bottom: 2px solid #9ca3af; transform: translateY(-60%) rotate(45deg); pointer-events: none; }
-    footer { text-align: center; font-size: 0.7rem; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.12em; padding: 8px 0 24px; }
+    footer { text-align: center; font-size: 0.9rem; font-weight: 400; color: #6b7280; padding: 8px 0 24px; }
     @media (prefers-color-scheme: dark) {
       body { background: #0f172a; color: #e2e8f0; }
       .card { background: #1e293b; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }

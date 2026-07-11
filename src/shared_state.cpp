@@ -2,10 +2,10 @@
 
 #include <Preferences.h>
 #include <WebServer.h>
-#include <driver/mcpwm.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
+#include "gitversion.h"
 #include "secrets.h"
 
 // ----------------------- Hardware / WiFi -----------------------
@@ -102,7 +102,17 @@ ModeState modeState = { WifiMode::AUTO, BroadcastMode::AUTO, SleepMode::AUTO };
 
 uint32_t lastWebActivityMs = 0;
 
-const char* BUILD_INFO = "Built " __DATE__ " " __TIME__;
+#ifdef GIT_COMMIT_SHORT
+  #if GIT_DIRTY
+    #define BUILD_GIT_SUFFIX " · git " GIT_COMMIT_SHORT " (dirty)"
+  #else
+    #define BUILD_GIT_SUFFIX " · git " GIT_COMMIT_SHORT
+  #endif
+#else
+  #define BUILD_GIT_SUFFIX ""
+#endif
+const char* BUILD_INFO = "Built " __DATE__ " " __TIME__ BUILD_GIT_SUFFIX;
+
 
 String currentTzRule = "AEST-10AEDT,M10.1.0,M4.1.0/3";
 
