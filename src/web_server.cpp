@@ -102,6 +102,10 @@ static String htmlHead(const String& title)
     header.card { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
     h1 { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
     h2 { margin: 0 0 20px; font-size: 1.125rem; font-weight: 700; }
+    .h3-sub { font-size: 0.875rem; color: #6b7280; margin: 0 0 12px; }
+    .h3-sub.gap { margin-top: 18px; }
+    .msg { font-size: 1rem; color: #374151; }
+    .msg-detail { font-family: inherit; font-size: 0.85rem; color: #6b7280; margin-top: 12px; }
     .badge { display: inline-block; padding: 6px 14px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
     .badge.auto { background: #d1fae5; color: #065f46; }
     .badge.override { background: #fef3c7; color: #92400e; }
@@ -133,12 +137,12 @@ static String htmlHead(const String& title)
     .btn-status:hover { background: #b45309; }
     .field { margin-bottom: 18px; }
     label { display: block; font-size: 0.9rem; font-weight: 500; color: #374151; margin-bottom: 6px; }
-    .readonly { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; display: block; width: 100%; padding: 12px 14px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 0.8rem; color: #4b5563; word-break: break-all; line-height: 1.4; }
-    .readonly-label { display: block; font-size: 0.65rem; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
-    .kv { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f3f4f6; }
+    .readonly { font-family: inherit; display: block; width: 100%; padding: 12px 14px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 0.95rem; color: #4b5563; word-break: break-all; line-height: 1.4; }
+    .readonly-label { display: block; font-size: 0.9rem; font-weight: 500; color: #374151; margin-bottom: 6px; }
+    .kv { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px solid #f3f4f6; }
     .kv:last-child { border-bottom: none; }
-    .kv .k { font-size: 0.9rem; color: #6b7280; }
-    .kv .v { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.85rem; color: #111827; font-weight: 600; }
+    .kv .k { font-size: 1rem; color: #6b7280; flex: 0 0 auto; }
+    .kv .v { flex: 1 1 auto; min-width: 0; text-align: right; font-family: inherit; font-weight: 600; word-break: break-word; }
     select, input[type="text"] { width: 100%; padding: 13px 14px; border: 1px solid #d1d5db; border-radius: 10px; font-size: 0.95rem; background: #fff; color: #111827; appearance: none; -webkit-appearance: none; }
     select:focus, input[type="text"]:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.12); }
     .select-wrap { position: relative; }
@@ -169,6 +173,9 @@ static String htmlHead(const String& title)
       .btn-status { background: #f59e0b; color: #1c1917; }
       .btn-status:hover { background: #fbbf24; }
       label { color: #d1d5db; }
+      .h3-sub { color: #9ca3af; }
+      .msg { color: #cbd5e1; }
+      .msg-detail { color: #94a3b8; }
       .readonly { background: #1e293b; border-color: #4b5563; color: #cbd5e1; }
       .readonly-label { color: #6b7280; }
       .kv { border-bottom-color: #374151; }
@@ -199,13 +206,13 @@ static void sendHtmlResult(const String& title, const String& message, const Str
     page += R"UIPART(</h1>
     </header>
     <section class="card">
-      <p style="font-size:1rem;color:#374151;">)UIPART";
+      <p class="msg">)UIPART";
     page += message;
     page += R"UIPART(</p>
 )UIPART";
 
     if (detail.length() > 0) {
-        page += R"UIPART(<p style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.85rem;color:#6b7280;margin-top:12px;">)UIPART";
+        page += R"UIPART(<p class="msg-detail">)UIPART";
         page += detail;
         page += "</p>";
     }
@@ -229,13 +236,13 @@ void handleWebRoot()
     String page;
     page.reserve(5200);
 
-    page += htmlHead("JJY Transmitter");
+    page += htmlHead("JJY 40kHz Radio Time Beacon");
 
     page += R"UIPART(
 <body>
   <div class="wrap">
     <header class="card">
-      <h1>JJY Transmitter</h1>
+      <h1>JJY 40kHz Radio Time Beacon</h1>
       <span class="badge )UIPART";
 
     page += currentModeBadge();
@@ -270,7 +277,7 @@ void handleWebRoot()
           <a href="/mode/wifi?value=auto" class="btn btn-success">Auto</a>
           <a href="/mode/wifi?value=on" class="btn btn-danger">On</a>
         </div>
-        <h3 style="font-size:0.875rem;color:#6b7280;margin:18px 0 12px;">Deep Sleep</h3>
+        <h3 class="h3-sub gap">Deep Sleep</h3>
         <div class="btn-group">
           <a href="/mode/sleep?value=auto" class="btn btn-success">Auto</a>
           <a href="/mode/sleep?value=off" class="btn btn-danger">Stay Awake</a>
@@ -419,13 +426,13 @@ void handleWebStatus()
     String page;
     page.reserve(4200);
 
-    page += htmlHead("JJY Status");
+    page += htmlHead("Status");
     page += R"UIPART(
 <meta http-equiv="refresh" content="10">
 <body>
   <div class="wrap">
     <header class="card">
-      <h1>JJY Status</h1>
+      <h1>Status</h1>
       <span class="badge )UIPART";
 
     page += currentModeBadge();
