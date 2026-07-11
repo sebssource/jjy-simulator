@@ -26,7 +26,7 @@ const char* NTP1 = "pool.ntp.org";
 const char* NTP2 = "time.google.com";
 
 const uint32_t NTP_SYNC_TIMEOUT_MS = 25000;
-const uint32_t NTP_RESYNC_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
+const uint32_t NTP_RESYNC_INTERVAL_MS = 1UL * 60UL * 60UL * 1000UL;
 
 // ----------------------- Daily TX schedule -----------------------
 const uint8_t SCHEDULED_SLOT_COUNT = 2;
@@ -79,6 +79,7 @@ bool symbolOnPhaseActive = false;
 uint32_t symbolOnStartedMs = 0;
 uint16_t activeOnDurationMs = 0;
 uint32_t lastResyncAttemptMs = 0;
+time_t lastSyncEpoch = 0;
 uint32_t currentCarrierHz = CARRIER_HZ_DEFAULT;
 bool rampUpActive = false;
 bool rampDownActive = false;

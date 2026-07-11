@@ -72,6 +72,7 @@ extern bool symbolOnPhaseActive;
 extern uint32_t symbolOnStartedMs;
 extern uint16_t activeOnDurationMs;
 extern uint32_t lastResyncAttemptMs;
+extern time_t lastSyncEpoch;
 extern uint32_t currentCarrierHz;
 extern bool rampUpActive;
 extern bool rampDownActive;

@@ -1,6 +1,21 @@
 #include "wifi_time.h"
 
+#include <esp_sntp.h>
+
 #include "shared_state.h"
+
+// Called by the SNTP daemon only when a sync actually succeeds (it does not
+// fire on failure; the daemon just retries on the next interval). Records the
+// sync time and logs it.
+static void onSntpSync(struct timeval* tv)
+{
+    lastSyncEpoch = tv->tv_sec;
+    struct tm t;
+    localtime_r(&tv->tv_sec, &t);
+    char buf[32];
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &t);
+    Serial.printf("[NTP] Daemon sync OK: %s\n", buf);
+}
 
 enum class WifiConnectState { DISCONNECTED, CONNECTING, CONNECTED };
 
@@ -59,6 +74,13 @@ bool initialTimeSync()
 {
     configTzTime(currentTzRule.c_str(), NTP1, NTP2);
 
+    // Hand ongoing sync ownership to the SNTP daemon instead of re-initializing
+    // it from periodicResync(). The daemon polls at this interval on its own
+    // (default 1h), which keeps the clock correct to <0.2s in permanent-broadcast
+    // mode and is more than enough given the ESP32's sub-second daily drift.
+    sntp_set_sync_interval(NTP_RESYNC_INTERVAL_MS);
+    sntp_set_time_sync_notification_cb(onSntpSync);
+
     tm timeInfo;
     uint32_t startMs = millis();
     while ((millis() - startMs) < NTP_SYNC_TIMEOUT_MS) {
@@ -66,6 +88,8 @@ bool initialTimeSync()
             char buf[32];
             strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &timeInfo);
             Serial.printf("[NTP] Initial sync OK. Local time: %s\n", buf);
+            Serial.printf("[NTP] SNTP daemon polling every %lu ms\n", NTP_RESYNC_INTERVAL_MS);
+            lastSyncEpoch = time(nullptr);
             lastResyncAttemptMs = millis();
             return true;
         }
@@ -87,7 +111,12 @@ void periodicResync()
     }
 
     Serial.println("[NTP] Periodic re-sync request...");
-    configTzTime(currentTzRule.c_str(), NTP1, NTP2);
+    // NOTE: Re-initializing the SNTP daemon here is intentionally disabled.
+    // configTzTime() calls sntp_stop()+sntp_init() again, which both restarts
+    // the poll timer and can briefly disrupt an in-flight sync. The daemon now
+    // owns ongoing sync via sntp_set_sync_interval() set in initialTimeSync(),
+    // so a redundant re-init is unnecessary. Kept for reference:
+    // configTzTime(currentTzRule.c_str(), NTP1, NTP2);
     lastResyncAttemptMs = millis();
 }
 

@@ -380,6 +380,7 @@ static void sendJsonStatus()
     { String m = sleepModeLabel(modeState.sleepMode); m.toLowerCase(); json += "\"sleep_mode\":\"" + m + "\","; }
     json += "\"time\":\"" + formatEpochLocal(nowEpoch) + "\",";
     json += "\"tz_rule\":\"" + currentTzRule + "\",";
+    json += "\"last_sync\":\"" + (lastSyncEpoch != 0 ? formatEpochLocal(lastSyncEpoch) : String("n/a")) + "\",";
     json += "\"next_slot\":\"" + (haveNextSlot ? formatEpochLocal(nextSlotEpoch) : String("n/a")) + "\",";
     json += "\"next_wake\":\"" + (haveNextSlot ? formatEpochLocal(nextWakeEpoch) : String("n/a")) + "\",";
     json += "\"next_slot_index\":" + String(nextSlotIndex) + ",";
@@ -442,6 +443,9 @@ void handleWebStatus()
     page += R"UIPART(</span></div>
       <div class="kv"><span class="k">Timezone Rule</span><span class="v">)UIPART";
     page += currentTzRule;
+    page += R"UIPART(</span></div>
+      <div class="kv"><span class="k">Last Sync</span><span class="v">)UIPART";
+    page += (lastSyncEpoch != 0) ? formatEpochLocal(lastSyncEpoch) : "n/a";
     page += R"UIPART(</span></div>
       <div class="kv"><span class="k">Carrier Frequency</span><span class="v">)UIPART";
     page += String(currentCarrierHz) + " Hz";
