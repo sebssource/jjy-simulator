@@ -236,6 +236,8 @@ void handleWebRoot()
     String page;
     page.reserve(5200);
 
+    const time_t nowEpoch = time(nullptr);
+
     page += htmlHead("JJY 40kHz Radio Time Beacon");
 
     page += R"UIPART(
@@ -258,8 +260,14 @@ void handleWebRoot()
     }
 
     if (coldBootBroadcastActive) {
+        uint32_t remainingSec = 0;
+        if (isValidEpoch(nowEpoch) && txWindowEndEpoch > nowEpoch) {
+            remainingSec = static_cast<uint32_t>(txWindowEndEpoch - nowEpoch);
+        }
         page += R"UIPART(
-    <div class="alert amber"><strong>Cold boot broadcast active.</strong> Auto deep sleep is paused while the window runs.</div>
+    <div class="alert amber"><strong>Cold boot broadcast active.</strong> Time remaining )UIPART";
+        page += formatSecondsAsHhMmSs(remainingSec);
+        page += R"UIPART(</div>
 )UIPART";
     }
 
