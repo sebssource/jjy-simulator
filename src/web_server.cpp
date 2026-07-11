@@ -168,10 +168,10 @@ static String htmlHead(const String& title)
       .btn-danger:hover { background: #f87171; }
       .btn-default { background: #1e293b; color: #e2e8f0; border-color: #4b5563; }
       .btn-default:hover { background: #334155; }
-      .btn-sleep { background: #06b6d4; color: #fff; }
-      .btn-sleep:hover { background: #22d3ee; }
-      .btn-status { background: #f59e0b; color: #1c1917; }
-      .btn-status:hover { background: #fbbf24; }
+      .btn-sleep { background: #f59e0b; color: #1c1917; }
+      .btn-sleep:hover { background: #fbbf24; }
+      .btn-status { background: #06b6d4; color: #fff; }
+      .btn-status:hover { background: #22d3ee; }
       label { color: #d1d5db; }
       .h3-sub { color: #9ca3af; }
       .msg { color: #cbd5e1; }
