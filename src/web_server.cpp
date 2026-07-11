@@ -156,6 +156,7 @@ static String htmlHead(const String& title)
       .badge.perm { background: #7f1d1d; color: #fca5a5; }
       .badge.off { background: #374151; color: #d1d5db; }
       .badge.sleep { background: #312e81; color: #a5b4fc; }
+      .badge.cold { background: #78350f; color: #fcd34d; }
       .alert.amber { background: #451a03; border-left-color: #fbbf24; color: #fcd34d; }
       .alert.red { background: #450a0a; border-left-color: #f87171; color: #fca5a5; }
       .btn-primary { background: #6366f1; color: #fff; }
@@ -236,8 +237,6 @@ void handleWebRoot()
     String page;
     page.reserve(5200);
 
-    const time_t nowEpoch = time(nullptr);
-
     page += htmlHead("JJY 40kHz Radio Time Beacon");
 
     page += R"UIPART(
@@ -247,29 +246,17 @@ void handleWebRoot()
       <h1>JJY 40kHz Radio Time Beacon</h1>
       <span class="badge )UIPART";
 
+    if (coldBootBroadcastActive) {
+        page += R"UIPART(cold">Cold Boot Window Active)UIPART";
+        page += R"UIPART(</span>
+      <span class="badge )UIPART";
+    }
+
     page += currentModeBadge();
 
     page += R"UIPART(</span>
     </header>
 )UIPART";
-
-    if (modeState.broadcastMode == BroadcastMode::ON) {
-        page += R"UIPART(
-    <div class="alert red"><strong>Permanent broadcast is active.</strong> Device stays awake and the carrier transmits continuously. Wi-Fi is kept on.</div>
-)UIPART";
-    }
-
-    if (coldBootBroadcastActive) {
-        uint32_t remainingSec = 0;
-        if (isValidEpoch(nowEpoch) && txWindowEndEpoch > nowEpoch) {
-            remainingSec = static_cast<uint32_t>(txWindowEndEpoch - nowEpoch);
-        }
-        page += R"UIPART(
-    <div class="alert amber"><strong>Cold boot broadcast active.</strong> Time remaining )UIPART";
-        page += formatSecondsAsHhMmSs(remainingSec);
-        page += R"UIPART(</div>
-)UIPART";
-    }
 
     page += R"UIPART(
     <div class="grid">
