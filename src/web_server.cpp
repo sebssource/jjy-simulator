@@ -295,7 +295,7 @@ void handleWebRoot()
           <div class="field">
             <label for="tz_sel">Select Timezone</label>
             <div class="select-wrap">
-              <select id="tz_sel" name="tz" onchange="updateTzVisibility()">
+              <select id="tz_sel" name="tz" onchange="updateTzVisibility()" style="font-family: -apple-system, 'Noto Sans', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 0.95rem; color: #111827;">
                 <option value="AEST-10AEDT,M10.1.0,M4.1.0/3">Sydney AEDT</option>
                 <option value="JST-9">Japan (JST-9)</option>
                 <option value="UTC0">UTC (UTC0)</option>
@@ -305,7 +305,7 @@ void handleWebRoot()
           </div>
           <div id="tz_custom_div" style="display:none;" class="field">
             <label for="tz_custom">POSIX Rule</label>
-            <input type="text" id="tz_custom" name="tz_custom" placeholder="e.g. JST-9">
+            <input type="text" id="tz_custom" name="tz_custom" placeholder="e.g. JST-9" style="font-family: -apple-system, 'Noto Sans', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 0.95rem; color: #111827;">
           </div>
           <button type="submit" onclick="var s=document.getElementById('tz_sel');if(s.value==='custom'){s.value=document.getElementById('tz_custom').value;}" class="btn btn-primary">Apply Timezone</button>
         </form>
