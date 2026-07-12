@@ -7,8 +7,7 @@ ESP32-based transmitter that simulates the Japanese JJY (Fukushima 40 kHz) longw
 ## Build
 
 ```
-pio run -e esp32doit-devkit-v1 -e esp32dev    # build both targets (parallel)
-pio run -e esp32doit-devkit-v1                 # single target
+pio run -e esp32dev                 # single target
 ```
 
 - **Do NOT use `idf.py`**. PlatformIO only.
